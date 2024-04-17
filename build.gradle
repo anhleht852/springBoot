@@ -40,6 +40,11 @@ dependencies {
     //thư viện tag tiêu chuẩn giúp đơn giản hóa và tăng tính tái sử dụng trong phát triển JSP.
 
 	implementation 'org.springframework.boot:spring-boot-starter-cache' // Thêm dependency cho Spring Cache
+	implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+
+	// Phụ thuộc vào thư viện jedis
+	implementation 'redis.clients:jedis:3.7.0'
+
 }
 
 tasks.named('bootBuildImage') {

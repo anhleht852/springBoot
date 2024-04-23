@@ -3,3 +3,10 @@ spring:
     view:
       prefix: /WEB-INF/views/
       suffix: .jsp
+
+
+  cache:
+    type: redis
+  redis:
+    host: localhost
+    port: 6379

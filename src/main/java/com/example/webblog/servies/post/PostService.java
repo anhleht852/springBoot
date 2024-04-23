@@ -9,6 +9,9 @@ import com.example.webblog.requestmodel.PostRequest;
 import com.example.webblog.servies.comment.ICommentService;
 import com.example.webblog.servies.rate.IRateService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.CachePut;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
@@ -50,6 +53,7 @@ public class PostService implements IPostService {
 
 
     @Override//Trả về tất cả bài viết dưới dạng PostRequest
+    @Cacheable(value = "allPosts")
     public Iterable<PostRequest> findAll() {//để lấy danh sách các bài viết
         List<PostRequest> posts = new ArrayList<>();
         for (Post post : postRepository.findAll()) {
@@ -59,6 +63,7 @@ public class PostService implements IPostService {
     }
 
     @Override//Tìm và trả về một bài viết dựa trên id nhất định dưới dạng PostRequest
+    @Cacheable(value = "post", key = "#id")
     public Optional<PostRequest> findById(Long id) {//  lấy Optional<Post> từ cơ sở dữ liệu dựa trên id.
         Post post = postRepository.findById(id).orElse(null);;//Sử dụng orElse(null) để kiểm tra bài viết tồn tại không.
         if (post == null) return Optional.empty(); //Nếu không thì trả về Optional.empty().
@@ -68,10 +73,9 @@ public class PostService implements IPostService {
 
 
     @Override
+    @CachePut(value = "post", key = "#post.postId")
     public PostRequest save(PostRequest post) {
-
         String role = (String) request.getSession().getAttribute("user-role");
-
         Post postModel = new Post();
         // Thiết lập các thuộc tính của bài viết từ PostRequest
         if(post.getPostId() != null) postModel.setPostId(post.getPostId());
@@ -103,8 +107,10 @@ public class PostService implements IPostService {
         return PostMapper.postModelToPostRequest(postCreate);
     }
 
-    @Transactional
+    // Phương thức xóa bài viết và cập nhật cache
     @Override
+    @Transactional
+    @CacheEvict(value = {"allPosts", "post"}, allEntries = true)
     public Boolean remove(Long id) {
         try {
             commentService.removeAllByPost(id);
@@ -117,7 +123,9 @@ public class PostService implements IPostService {
         }
     }
 
-    @Override // lấy danh sách bài viết dựa trên typeId và chuyển đổi chúng thành danh sách
+    // Lấy danh sách bài viết dựa trên typeId và chuyển đổi chúng thành danh sách PostRequest
+    @Override
+    @Cacheable(value = "postsByType", key = "#typeId")
     public List<PostRequest> getAllPostByTypeId(Long typeId) {
         // Sử dụng postRepository để lấy danh sách bài viết từ cơ sở dữ liệu dựa trên typeId
         List<Post> posts = (List<Post>) postRepository.getAllByTypeTypeId(typeId);
@@ -133,7 +141,9 @@ public class PostService implements IPostService {
         return postRequests;
     }
 
-    @Override//lấy danh sách bài viết dựa trên categoryId và chuyển đổi chúng thành danh sách PostRequest
+    // Lấy danh sách bài viết dựa trên categoryId và chuyển đổi chúng thành danh sách PostRequest
+    @Override
+    @Cacheable(value = "postsByCategory", key = "#categoryId")
     public List<PostRequest> getAllPostByCategoryId(Long categoryId) {
         // Sử dụng postRepository để lấy danh sách bài viết từ cơ sở dữ liệu dựa trên categoryId
         List<Post> posts = (List<Post>) postRepository.getAllByCategoryCategoryId(categoryId);
@@ -149,7 +159,9 @@ public class PostService implements IPostService {
         return postRequests;
     }
 
-    @Override//lấy danh sách bài viết dựa trên accountId và chuyển đổi chúng thành
+    // Lấy danh sách bài viết dựa trên accountId và chuyển đổi chúng thành danh sách PostRequest
+    @Override
+    @Cacheable(value = "postsByAccount", key = "#accountId")
     public List<PostRequest> getAllPostByAccountId(Long accountId) {
         // Sử dụng postRepository để lấy danh sách bài viết từ cơ sở dữ liệu dựa trên accountId
         List<Post> posts = (List<Post>) postRepository.getAllByAccountAccountId(accountId);
@@ -165,7 +177,9 @@ public class PostService implements IPostService {
         return postRequests;
     }
 
-    @Override// để lấy danh sách bài viết từ cơ sở dữ liệu dựa trên title
+    // Lấy danh sách bài viết dựa trên title và chuyển đổi chúng thành danh sách PostRequest
+    @Override
+    @Cacheable(value = "postsByTitle", key = "#title")
     public List<PostRequest> getAllPostByTitle(String title) {
         // Sử dụng postRepository để lấy danh sách bài viết từ cơ sở dữ liệu dựa trên title
         List<Post> posts = (List<Post>) postRepository.getAllByTitleContaining(title);
@@ -192,9 +206,9 @@ public class PostService implements IPostService {
         if (post != null) {
             post.setStatus(1);// Cập nhật trạng thái của bài viết thành 1 (kích hoạt)
             postRepository.save(post); // Lưu bài viết đã được cập nhật vào cơ sở dữ liệu
-            return true;  // Trả về true để chỉ ra rằng bài viết đã được kích hoạt thành công
+            return true;  // Trả về true thành công
         }
-        return false; // Trả về false nếu bài viết không tồn tại
+        return false;
     }
 
 

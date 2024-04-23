@@ -10,6 +10,8 @@ import com.example.webblog.servies.category.ICategoryService;
 import com.example.webblog.servies.post.IPostService;
 import com.example.webblog.servies.type.ITypeService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.StringUtils;
@@ -49,12 +51,19 @@ public class PostRestController {
     @Autowired
     private HttpServletRequest request;
 
+    @Autowired
+    private RedisTemplate<String, Object> redisTemplate;
+
     @GetMapping
+    @Cacheable(value = "allPosts")
     public ResponseEntity<List<PostRequest>> getPosts() {
-        return ResponseEntity.ok((List<PostRequest>) postService.findAll());
+        List<PostRequest> posts = (List<PostRequest>) postService.findAll();
+        redisTemplate.opsForValue().set("allPosts", posts);
+        return ResponseEntity.ok(posts);
     }
 
     @GetMapping("/{postId}")
+    @Cacheable(value = "postCache", key = "#postId")
     public ResponseEntity<PostRequest> getPostById(@PathVariable("postId") Long postId) {
         Optional<PostRequest> post = postService.findById(postId);
         // Kiểm tra xem  có tồn tại không
@@ -67,44 +76,67 @@ public class PostRestController {
 
 
 
-
-
+//    @GetMapping("/types/{typeId}")
+//    @Cacheable(value = "typePostsCache", key = "#typeId")
+//    public ResponseEntity<List<PostRequest>> getPostByTypeId(@PathVariable("typeId") Long typeId) {
+//        Optional<Type> type = typeService.findById(typeId);
+//        if (!type.isPresent()) {
+//            return new ResponseEntity<>(HttpStatus.NOT_FOUND);// Nếu không tồn tại
+//        }
+//        List<PostRequest> posts = postService.getAllPostByTypeId(typeId);
+//        if (posts.isEmpty()) {// Kiểm tra xem có bài post
+//            return new ResponseEntity<>(HttpStatus.NOT_FOUND);// Nếu không tồn tại
+//        } else {
+//            return ResponseEntity.ok(posts);
+//        }
+//    }
     @GetMapping("/types/{typeId}")
+    @Cacheable(value = "typePostsCache", key = "#typeId")
     public ResponseEntity<List<PostRequest>> getPostByTypeId(@PathVariable("typeId") Long typeId) {
-        Optional<Type> type = typeService.findById(typeId);
-        if (!type.isPresent()) {
-            return new ResponseEntity<>(HttpStatus.NOT_FOUND);// Nếu không tồn tại
-        }
         List<PostRequest> posts = postService.getAllPostByTypeId(typeId);
-        if (posts.isEmpty()) {// Kiểm tra xem có bài post
-            return new ResponseEntity<>(HttpStatus.NOT_FOUND);// Nếu không tồn tại
-        } else {
-            return ResponseEntity.ok(posts);
-        }
+        redisTemplate.opsForValue().set("type_" + typeId, posts);
+        return ResponseEntity.ok(posts);
     }
 
+//    @GetMapping("/categories/{categoryId}")
+//    @Cacheable(value = "categoryPostsCache", key = "#categoryId")
+//    public ResponseEntity<List<PostRequest>> getPostByCategoryId(@PathVariable("categoryId") Long categoryId) {
+//        Optional<Category> category = categoryService.findById(categoryId);
+//        if (!category.isPresent()) {
+//            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+//        }
+//        List<PostRequest> posts = postService.getAllPostByCategoryId(categoryId);
+//        if (posts.isEmpty()) {
+//            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+//        } else {
+//            return ResponseEntity.ok(posts);
+//        }
+//    }
     @GetMapping("/categories/{categoryId}")
+    @Cacheable(value = "categoryPostsCache", key = "#categoryId")
     public ResponseEntity<List<PostRequest>> getPostByCategoryId(@PathVariable("categoryId") Long categoryId) {
-        Optional<Category> category = categoryService.findById(categoryId);
-        if (!category.isPresent()) {
-            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
-        }
         List<PostRequest> posts = postService.getAllPostByCategoryId(categoryId);
-        if (posts.isEmpty()) {
-            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
-        } else {
-            return ResponseEntity.ok(posts);
-        }
+        redisTemplate.opsForValue().set("category_" + categoryId, posts);
+        return ResponseEntity.ok(posts);
     }
+
+//    @GetMapping("/search/{title}")
+//    @Cacheable(value = "postsByTitle", key = "#title")
+//    public ResponseEntity<List<PostRequest>> getAllPostByTitle(@PathVariable("title") String title) {
+//        List<PostRequest> posts = postService.getAllPostByTitle(title);
+//        if (posts.isEmpty()) {
+//            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+//        } else {
+//            return ResponseEntity.ok(posts);
+//        }
+//    }
 
     @GetMapping("/search/{title}")
+    @Cacheable(value = "postsByTitle", key = "#title")
     public ResponseEntity<List<PostRequest>> getAllPostByTitle(@PathVariable("title") String title) {
         List<PostRequest> posts = postService.getAllPostByTitle(title);
-        if (posts.isEmpty()) {
-            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
-        } else {
-            return ResponseEntity.ok(posts);
-        }
+        redisTemplate.opsForValue().set("search_" + title, posts);
+        return ResponseEntity.ok(posts);
     }
 
 
@@ -119,8 +151,7 @@ public class PostRestController {
     }
 
 
-
-    //    @GetMapping("/accounts/{accountId}")
+//    @GetMapping("/accounts/{accountId}")
 //    public ResponseEntity<List<PostRequest>> getPostByAccountId(@PathVariable("accountId") Long accountId) {
 //        Optional<Account> account = accountService.findById(accountId);
 //        if (!account.isPresent()) {
@@ -133,8 +164,15 @@ public class PostRestController {
 //            return ResponseEntity.ok(posts);
 //        }
 //    }
+    @GetMapping("/accounts/{accountId}")
+    @Cacheable(value = "postsByAccount", key = "#accountId")
+    public ResponseEntity<List<PostRequest>> getPostByAccountId(@PathVariable("accountId") Long accountId) {
+        List<PostRequest> posts = postService.getAllPostByAccountId(accountId);
+        redisTemplate.opsForValue().set("account_" + accountId, posts);
+        return ResponseEntity.ok(posts);
+    }
 
-//
+
 //    @PostMapping
 //    public ResponseEntity<PostRequest> createPost(@ModelAttribute PostRequest postRequest,
 //                                                  @RequestParam("pictureFile") MultipartFile picture) {
@@ -143,7 +181,12 @@ public class PostRestController {
 //        PostRequest createdPost = postService.save(postRequest);
 //        return ResponseEntity.ok(createdPost);
 //    }
-//
+    @PostMapping
+    public ResponseEntity<PostRequest> createPost(@ModelAttribute PostRequest postRequest) {
+        PostRequest createdPost = postService.save(postRequest);
+        return ResponseEntity.ok(createdPost);
+    }
+
 //    @PutMapping("/{postId}")
 //    public ResponseEntity<PostRequest> updatePost(@PathVariable("postId") Long postId, @ModelAttribute PostRequest postRequest,
 //                                                  @RequestParam("pictureFile") MultipartFile picture) {
@@ -166,7 +209,18 @@ public class PostRestController {
 //            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
 //        }
 //    }
-//
+    @PutMapping("/{postId}")
+    public ResponseEntity<PostRequest> updatePost(@PathVariable("postId") Long postId, @ModelAttribute PostRequest postRequest) {
+        Optional<PostRequest> existingPost = postService.findById(postId);
+        if (existingPost.isPresent()) {
+            postRequest.setPostId(postId);
+            PostRequest updatedPost = postService.save(postRequest);
+            return ResponseEntity.ok(updatedPost);
+        } else {
+            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+        }
+    }
+
 //    @PutMapping("/update-no-picture/{postId}")
 //    public ResponseEntity<PostRequest> updatePostWithoutPicture(@PathVariable("postId") Long postId,
 //            @ModelAttribute PostRequest postRequest) {
@@ -181,56 +235,67 @@ public class PostRestController {
 //            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
 //        }
 //    }
-//
-//    @DeleteMapping("/{postId}")
-//    public ResponseEntity<Boolean> deletePost(@PathVariable("postId") Long postId) {
-//        Optional<PostRequest> postRequest = postService.findById(postId);
-//        if (!postRequest.isPresent()) {
-//            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
-//        }
-//        boolean isDeleted = postService.remove(postId);
-//        if (isDeleted) {
-//            return ResponseEntity.ok(true);
-//        } else {
-//            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
-//        }
-//    }
-//
-//    public String uploadImage(MultipartFile picture){
-//        String img = "";
-//        // Kiểm tra xem tệp hình ảnh có được tải lên không
-//        if (!picture.isEmpty()) {
-//            try {
-//                // Lấy tên tệp hình ảnh và làm sạch nó
-//                String fileName = StringUtils.cleanPath(Objects.requireNonNull(picture.getOriginalFilename()));
-//
-//                // Định nghĩa thư mục để lưu trữ tệp hình ảnh đã tải lên
-//                String uploadDir = "WEB-INF/static/img-upload";
-//
-//                // Lấy đường dẫn gốc của ứng dụng web
-//                String rootPath = servletContext.getRealPath("/");
-//
-//                // Tạo thư mục nếu nó chưa tồn tại
-//                Path dirPath = Paths.get(rootPath, uploadDir);
-//                if (!Files.exists(dirPath)) {
-//                    Files.createDirectories(dirPath);
-//                }
-//
-//                // Tạo đường dẫn lưu trữ cho tệp
-//                Path filePath = Paths.get(rootPath, uploadDir, fileName);
-//
-//                // Lưu trữ tệp vào thư mục được chỉ định
-//                Files.copy(picture.getInputStream(), filePath);
-//
-//                // Trả về đường dẫn hình ảnh sau khi đã lưu trữ
-//                return "/img-upload/" + fileName;
-//
-//            } catch (IOException e) {
-//                e.printStackTrace();
-//            }
-//        }
-//        // Trả về chuỗi rỗng nếu không có hình ảnh được tải lên
-//        return img;
-//    }
-//}
+    @PutMapping("/update-no-picture/{postId}")
+    public ResponseEntity<PostRequest> updatePostWithoutPicture(@PathVariable("postId") Long postId,
+                                                                @ModelAttribute PostRequest postRequest) {
+        Optional<PostRequest> existingPost = postService.findById(postId);
+        if (existingPost.isPresent()) {
+            postRequest.setPostId(postId);
+            PostRequest updatedPost = postService.save(postRequest);
+            return ResponseEntity.ok(updatedPost);
+        } else {
+            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+        }
+    }
+
+    @DeleteMapping("/{postId}")
+    public ResponseEntity<Boolean> deletePost(@PathVariable("postId") Long postId) {
+        Optional<PostRequest> postRequest = postService.findById(postId);
+        if (!postRequest.isPresent()) {
+            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+        }
+        boolean isDeleted = postService.remove(postId);
+        if (isDeleted) {
+            return ResponseEntity.ok(true);
+        } else {
+            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+        }
+    }
+
+    public String uploadImage(MultipartFile picture){
+        String img = "";
+        // Kiểm tra xem tệp hình ảnh có được tải lên không
+        if (!picture.isEmpty()) {
+            try {
+                // Lấy tên tệp hình ảnh và làm sạch nó
+                String fileName = StringUtils.cleanPath(Objects.requireNonNull(picture.getOriginalFilename()));
+
+                // Định nghĩa thư mục để lưu trữ tệp hình ảnh đã tải lên
+                String uploadDir = "WEB-INF/static/img-upload";
+
+                // Lấy đường dẫn gốc của ứng dụng web
+                String rootPath = servletContext.getRealPath("/");
+
+                // Tạo thư mục nếu nó chưa tồn tại
+                Path dirPath = Paths.get(rootPath, uploadDir);
+                if (!Files.exists(dirPath)) {
+                    Files.createDirectories(dirPath);
+                }
+
+                // Tạo đường dẫn lưu trữ cho tệp
+                Path filePath = Paths.get(rootPath, uploadDir, fileName);
+
+                // Lưu trữ tệp vào thư mục được chỉ định
+                Files.copy(picture.getInputStream(), filePath);
+
+                // Trả về đường dẫn hình ảnh sau khi đã lưu trữ
+                return "/img-upload/" + fileName;
+
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+        // Trả về chuỗi rỗng nếu không có hình ảnh được tải lên
+        return img;
+    }
 }

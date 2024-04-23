@@ -29,6 +29,32 @@
 </head>
 
 <body>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', 'http://localhost:8082/api/posts', true);
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState === XMLHttpRequest.DONE) {
+                if (xhr.status === 200) {
+                    var responseData = JSON.parse(xhr.responseText);
+                    displayData(responseData);
+                } else {
+                    console.error('Failed to load data from cache.');
+                }
+            }
+        };
+        xhr.send();
+    });
+
+    function displayData(data) {
+        var postsContainer = document.getElementById('posts-container');
+        data.forEach(function(post) {
+            var postElement = document.createElement('div');
+            postElement.textContent = post.title;
+            postsContainer.appendChild(postElement);
+        });
+    }
+</script>
 <!-- Page Preloder -->
 <div id="preloder">
     <div class="loader"></div>
